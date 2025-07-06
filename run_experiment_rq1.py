@@ -19,7 +19,14 @@ def visualize():
     df = stats.load_stats_dataframe(iteration_results, aggregated_results)
 
     pure_df = df[(~df['agent'].isin(['heur_random', 'heur_sort', 'heur_weight'])) & (df['detected'] + df['missed']) > 0]
-    mean_df = pure_df.groupby(['step', 'env', 'agent', 'rewardfun'], as_index=False).mean()
+    # mean_df = pure_df.groupby(['step', 'env', 'agent', 'rewardfun'], as_index=False).mean()
+        
+    # 只选择数值列进行均值计算，排除字符串列
+    numeric_columns = ['step', 'detected', 'missed', 'ttf', 'napfd', 'recall', 'avg_precision', 'durations', 'rewards']
+    group_columns = ['step', 'env', 'agent', 'rewardfun']
+    
+    # 先按分组列分组，然后只对数值列计算均值
+    mean_df = pure_df.groupby(group_columns, as_index=False)[numeric_columns].mean()
 
     # One subplot per data set (= one row in the paper)
     # for env in mean_df['env'].unique():
@@ -79,7 +86,7 @@ def visualize():
             axarr[row, column].legend_.remove()
 
             axarr[row, column].set_xticks(np.arange(0, 350, 30), minor=False)
-            axarr[row, column].set_xticklabels([0, '', 60, '', 120, '', 180, '', 240, '', 300], minor=False)
+            axarr[row, column].set_xticklabels([0, '', 60, '', 120, '', 180, '', 240, '', 300, ''], minor=False)
             axarr[row, column].xaxis.grid(True, which='major')
 
             if column == 1:

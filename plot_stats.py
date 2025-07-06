@@ -1,5 +1,5 @@
 """ Plots RL stats """
-
+from __future__ import division
 
 import glob
 import os
@@ -14,77 +14,53 @@ import seaborn as sns
 from stats import plot_result_difference_bars
 
 try:
-    import pickle as pickle
+    import cPickle as pickle
 except:
     import pickle
 
 
-def plot_stats(prefix, stats_file, val_file, mean_interval=1, plot_graphs=True, save_graphs=False):
+def plot_stats(prefix, stats_file, val_file, mean_interval=10, plot_graphs=True, save_graphs=False):
     plot_stats_single_figure(prefix, stats_file, val_file, mean_interval, plot_graphs, save_graphs)
 
 
-## Plots a single figure for Recall and a separate one for the NAPFD . 
-## Both the difference bars and the line graphs are present in a figure.
-## For the difference bar, the line y=0 is the reference with respect to the algorithm . In other words, the graph of the difference of the performance is plotted.
-## Positive differences show better performance of the comparison algorithma nd negative difference show better performance of RETECS.
-def plot_stats_single_figure(prefix, stats_file, val_file, mean_interval=1, plot_graphs=True, save_graphs=False):
+def plot_stats_single_figure(prefix, stats_file, val_file, mean_interval=10, plot_graphs=True, save_graphs=False):
     if not plot_graphs and not save_graphs:
         print('Set at least one of plot_graphs and save_graphs to True')
         return
 
     sns.set_style('whitegrid')
-
-    ## Opening the Stats File
     stats = pickle.load(open(stats_file, 'rb'))
 
-    ## Suplots 2 means that 2 sub-graphs will be plotted in a graph.
-    ## One will be the difference graph and the other one will be the simple value graph.
-    fig, ax = plt.subplots(2)
-    (qax, rax) = ax
-
-    fig,ax2 = plt.subplots(2)
-    (qax2,rax2) =ax2
+    fig, ax = plt.subplots(4)
+    (qax, rax, vax1, vax2) = ax
 
     failure_count = np.add(stats['detected'], stats['missed'])
-
-    ## Range of X will be determined by the num of scenarios i.e the CI cycles
-    x = list(range(1, int(len(stats['scenarios']) / mean_interval) + 1))
+    x = range(1, int(len(stats['scenarios']) / mean_interval) + 1)
     perc_missed = [m / fc if fc > 0 else 0 for (m, fc) in zip(stats['missed'], failure_count)]
     mean_missed, missed_fit = mean_values(x, perc_missed, mean_interval)
     mean_reward, reward_fit = mean_values(x, stats['rewards'], mean_interval)
 
     plot_results_line_graph(stats, 'napfd', mean_interval, qax, x)
-
     #plot_napfd_metrics(afpd, mean_interval, mean_missed, missed_fit, qax, x)
 
     if 'comparison' in stats:
         plot_result_difference_bars(stats, 'napfd', rax, x)
-        # plot_result_difference_bars(stats,'recall',vax1,x)
     else:
         plot_results_line_graph(stats, 'rewards', mean_interval, rax, x)
 
-    # plot_validation(val_res, lambda res: res['napfd'], 'Validation Results', 'NAPFD', vax1)
-    # plot_validation(val_res, lambda res: res['detected'] / (res['detected'] + res['missed']) if (res['detected'] + res['missed']) > 0 else 1,
-    #                 'Validation Results', 'Failures Detected (in %)', vax2)
+    val_res = pickle.load(open(val_file, 'rb'))
+    plot_validation(val_res, lambda res: res['napfd'], 'Validation Results', 'NAPFD', vax1)
+    plot_validation(val_res, lambda res: res['detected'] / (res['detected'] + res['missed']) if (res['detected'] + res['missed']) > 0 else 1,
+                    'Validation Results', 'Failures Detected (in %)', vax2)
 
-    # if 'comparison' in stats:
-    #     plot_result_difference_bars(stats, 'recall', vax1, x)
-    #     # plot_result_difference_bars(stats,'recall',vax1,x)
-    # else:
-    plot_results_line_graph(stats, 'recall', mean_interval, qax2, x)
-
-    if 'comparison' in stats:
-        plot_result_difference_bars(stats, 'recall', rax2, x)
-
-
-    plt.tight_layout()
+    # plt.tight_layout()
 
     if plot_graphs:
         plt.show()
 
     if save_graphs:
-        fig.savefig('_learning.pgf' % prefix, bbox_inches='tight')
-        fig.savefig('_learning.png' % prefix, bbox_inches='tight')
+        fig.savefig('%s_learning.pgf' % prefix, bbox_inches='tight')
+        fig.savefig('%s_learning.png' % prefix, bbox_inches='tight')
         plt.close('all')
 
 
@@ -98,7 +74,7 @@ def plot_stats_separate_figures(prefix, stats_file, val_file, mean_interval=10, 
     stats = pickle.load(open(stats_file, 'rb'))
 
     failure_count = np.add(stats['detected'], stats['missed'])
-    x = list(range(1, int(len(stats['scenarios']) / mean_interval) + 1))
+    x = range(1, int(len(stats['scenarios']) / mean_interval) + 1)
     perc_missed = [m / fc if fc > 0 else 0 for (m, fc) in zip(stats['missed'], failure_count)]
     mean_missed, missed_fit = mean_values(x, perc_missed, mean_interval)
     mean_reward, reward_fit = mean_values(x, stats['rewards'], mean_interval)
@@ -157,17 +133,13 @@ def plot_stats_separate_figures(prefix, stats_file, val_file, mean_interval=10, 
 
 def plot_results_line_graph(stats, metric, mean_interval, qax, x, include_comparison=True):
     if include_comparison and 'comparison' in stats:
-        for key in list(stats['comparison'].keys()):
+        for key in stats['comparison'].keys():
             values, fitline = mean_values(x, stats['comparison'][key][metric], mean_interval)
-            if(metric=='napfd'):
-                values=values*100
-            qax.plot(x, values , label=key)
+            qax.plot(x, values * 100, label=key)
             #qax.plot(x, fitline(x) * 100, color='black')
 
     values, fitline = mean_values(x, stats[metric], mean_interval)
-    if(metric=='napfd'):
-        values=values*100
-    qax.plot(x, values , label=metric)
+    qax.plot(x, values * 100, label=metric)
     #qax.plot(x, fitline(x) * 100, color='black')
 
     qax.set_ylim([0, 100])
@@ -201,15 +173,9 @@ def plot_validation(val_res, res_fun, title, ylabel, ax=None):
         ax = plt.gca()
 
     df = pd.DataFrame.from_dict(val_res)
-    # print(type(df))
-    # print(len(df))
-    # print(df)
-    # # print(df[0])
     res_df = df.apply(res_fun, raw=True, axis=1)
     res_df.name = 'res'
     ydat = pd.concat([df, res_df], axis=1)
-    # print(ydat)
-    # input()
     sns.boxplot(data=ydat, x='step', y='res', palette=sns.color_palette(n_colors=1), ax=ax)
     ax.set_title(title)
     ax.set_ylabel(ylabel)
@@ -237,7 +203,7 @@ def print_failure_detection(result_dir, file_prefixes):
         dfs = pd.concat([pickle_to_dataframe(f) for f in files])
         df = df.append(dfs)
 
-    print (df)
+    print(df)
 
 if __name__ == '__main__':
     stats_file = 'tableau_iofrol_timerank_lr0.3_as5_n1000_eps0.1_hist3_tableau_stats.p'
@@ -246,5 +212,3 @@ if __name__ == '__main__':
     plot_stats_single_figure('tableau', stats_file, val_file, mean_interval, plot_graphs=True, save_graphs=False)
     #plot_stats_separate_figures('netq', stats_file, val_file, mean_interval, plot_graphs=False, save_graphs=True)
     #print_failure_detection('evaluation', ['heur_sort', 'heur_weight', 'random'])
-
-

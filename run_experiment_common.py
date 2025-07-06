@@ -72,8 +72,12 @@ import retecs
 import scenarios
 import stats
 
-ITERATIONS = 30
-CI_CYCLES = 1000
+# ITERATIONS = 30
+# CI_CYCLES = 1000
+
+# for testing
+ITERATIONS = 1
+CI_CYCLES = 10
 
 DATA_DIR = 'RESULTS'
 FIGURE_DIR = 'RESULTS'
@@ -120,11 +124,11 @@ def get_scenario(name):
 def run_experiments(exp_fun, parallel=PARALLEL):
     if parallel:
         p = multiprocessing.Pool(PARALLEL_POOL_SIZE)
-        avg_res = p.map(exp_fun, list(range(ITERATIONS)))
+        avg_res = p.map(exp_fun, range(ITERATIONS))
     else:
         avg_res = [exp_fun(i) for i in range(ITERATIONS)]
 
-    print(('Ran experiments: %d results' % len(avg_res)))
+    print('Ran experiments: %d results' % len(avg_res))
 
 
 def exp_run_industrial_datasets(iteration, datasets=['paintcontrol', 'iofrol', 'gsdtsr']):
@@ -147,10 +151,11 @@ def exp_run_industrial_datasets(iteration, datasets=['paintcontrol', 'iofrol', '
     }
 
     avg_napfd = []
+    datasets=['iofrol']
 
     for i, get_agent in enumerate(ags):
         for sc in datasets:
-            for (reward_name, reward_fun) in list(reward_funs.items()):
+            for (reward_name, reward_fun) in reward_funs.items():
                 agent, preprocessor, _ = get_agent()
                 file_appendix = 'rq_%s_%s_%s_%d' % (agent.name, sc, reward_name, iteration)
 

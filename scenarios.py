@@ -1,4 +1,4 @@
-
+from __future__ import division
 import json
 import csv
 from datetime import datetime, timedelta
@@ -9,12 +9,10 @@ import random
 import copy
 
 try:
-    import pickle as pickle
+    import cPickle as pickle
 except:
     import pickle
 
-## The class "IndustrialDatasetScenarioProvider" is of use to the algorithm.
-## Therefore, Other Comments have been mentioned for the functions pertaining to it only.
 
 def inhomogeneous_poisson(l, rej_threshold, default=0, size=1):
     values = np.random.poisson(lam=l, size=1)
@@ -38,7 +36,7 @@ def generate_solution(tc, basic_failure_chance, prev_failure_influence):
     failure_chance = basic_failure_chance + sum(tc['LastResults'][0:3]) * prev_failure_influence
     return 1 if random.random() < failure_chance else 0
 
-##
+
 class VirtualScenario(object):
     def __init__(self, available_time, testcases=[], solutions={}, name_suffix='vrt', schedule_date=datetime.today()):
         self.available_time = available_time
@@ -52,27 +50,16 @@ class VirtualScenario(object):
     def testcases(self):
         return iter(self.gen_testcases)
 
-    ## After the test cases of a particular build have been prioritized and giveb a Priority by the algorithm , this method schedules the test cases depending and returns the results
     def submit(self):
         # Sort tc by Prio ASC (for backwards scheduling), break ties randomly
-        
-        # If calculated priority is same, it Calculates randomly, we can then sort it according to duration or priority or a weighted combination of both.
-        # In future, if we are given the priorities of the test cases bedorehand,we need to just change the function lambda and make it a combination of both
-        # the given (known) priority and the priority calculated by the algorithm
-
         sorted_tc = sorted(self.gen_testcases, key=lambda x: (x['CalcPrio'], random.random()))
 
         # Build prefix sum of durations to find cut off point
         scheduled_time = 0
-
-        ## Detection Ranks store the positions of the test cases that failed in this particular build
         detection_ranks = []
         undetected_failures = 0
         rank_counter = 1
 
-        ## self.solutions is a Dictionary where the ID is the key and the verdict is the value
-        ## For failing test cases, the value is 1
-        ## For passing test cases, the value is 0
         while sorted_tc:
             cur_tc = sorted_tc.pop()
 
@@ -86,12 +73,9 @@ class VirtualScenario(object):
             else:
                 undetected_failures += self.solutions[cur_tc['Id']]
 
-        ## Total failures detected
         detected_failures = len(detection_ranks)
-
-        ## total number od failures present
         total_failure_count = sum(self.solutions.values())
-      
+
         assert undetected_failures + detected_failures == total_failure_count
 
         if total_failure_count > 0:
@@ -104,18 +88,17 @@ class VirtualScenario(object):
 
             napfd = p - sum(detection_ranks) / (total_failure_count * self.no_testcases) + p / (2 * self.no_testcases)
             recall = detected_failures / total_failure_count
-            avg_precision = 1
+            avg_precision = 123
         else:
             ttf = 0
             napfd = 1
             recall = 1
             avg_precision = 1
 
-        return [detected_failures, undetected_failures, ttf, napfd, recall*100, avg_precision, detection_ranks]
+        return [detected_failures, undetected_failures, ttf, napfd, recall, avg_precision, detection_ranks]
 
-    ## Returns the Available agents, the total time, the minExec time, the max Exectime,the scheduleDatem, the min Duration and the max Duraion for the test cases of a particular build
     def get_ta_metadata(self):
-        execTimes, durations = list(zip(*[(tc['LastRun'], tc['Duration']) for tc in self.testcases()]))
+        execTimes, durations = zip(*[(tc['LastRun'], tc['Duration']) for tc in self.testcases()])
 
         metadata = {
             'availAgents': 1,
@@ -232,9 +215,9 @@ class RandomScenarioProvider(object):
         return self
 
     def __next__(self):
-        return next(self)
+        return self.next()
 
-    def __next__(self):
+    def next(self):
         sc = self.get()
 
         if sc is None:
@@ -300,7 +283,6 @@ class IncrementalScenarioProvider(RandomScenarioProvider):
             failure_count_changes = 0
 
         # Update recently executed testcases
-        # Enumerate forms a tuple of (count,Element)
         for (idx, tc) in enumerate(self.testcases):
             if tc in self.scenario.scheduled_testcases:
                 sol = self.solutions[tc['Id']]
@@ -369,7 +351,7 @@ class FileBasedSubsetScenarioProvider(RandomScenarioProvider):
         self.sol_reader = csv.DictReader(open(solfile, 'r'), delimiter=';', quoting=csv.QUOTE_MINIMAL, escapechar='',
                                          quotechar='\'')
 
-        tc = next(self.next_testcase())
+        tc = self.next_testcase().next()
         self.testcases.append(tc)
 
         if starttime is None or not isinstance(starttime, datetime):
@@ -499,10 +481,9 @@ class FileBasedSubsetScenarioProvider(RandomScenarioProvider):
 class IndustrialDatasetScenarioProvider(RandomScenarioProvider):
     """
     Scenario provider to process CSV files for experimental evaluation of RETECS.
+
     Required columns are `self.tc_fieldnames` plus ['Verdict', 'Cycle']
     """
-
-    ## Scheduled_TIme_ratio is the ratio of the available time to schedule the test cases of a build to the total time required to run all the test cases in a build
     def __init__(self, tcfile, sched_time_ratio=0.5):
         super(IndustrialDatasetScenarioProvider, self).__init__()
 
@@ -511,46 +492,36 @@ class IndustrialDatasetScenarioProvider(RandomScenarioProvider):
 
         self.tcdf = pd.read_csv(tcfile, sep=';', parse_dates=['LastRun'])
         self.tcdf['LastResults'] = self.tcdf['LastResults'].apply(json.loads)
-        self.solutions = dict(list(zip(self.tcdf['Id'].tolist(), self.tcdf['Verdict'].tolist())))
+        self.solutions = dict(zip(self.tcdf['Id'].tolist(), self.tcdf['Verdict'].tolist()))
 
         self.cycle = 0
         self.maxtime = min(self.tcdf.LastRun)
-        self.maxtime=pd.Timestamp(self.maxtime)
         self.max_cycles = max(self.tcdf.Cycle)
-        # print(self.max_cycles)
-        # input()
         self.scenario = None
-        # This denotes the percentage of total time of a CI Cycle is used for scheduling test cases
-        self.avail_time_ratio = sched_time_ratio  
+        self.avail_time_ratio = sched_time_ratio
         self.tc_fieldnames = ['Id', 'Name', 'Duration', 'CalcPrio', 'LastRun', 'LastResults']
 
     def get(self, name_suffix=None):
-    	## Self.cycle stores the cycle no (the build number)
         self.cycle += 1
 
-       	## Termination Condition 
         if self.cycle > self.max_cycles:
             self.scenario = None
             return None
 
         cycledf = self.tcdf.loc[self.tcdf.Cycle == self.cycle]
 
-        seltc = cycledf[self.tc_fieldnames].to_dict(orient='record')
+        seltc = cycledf[self.tc_fieldnames].to_dict(orient='records')
 
         if name_suffix is None:
             name_suffix = (self.maxtime + timedelta(days=1)).isoformat()
 
-        ## Total required time is the sum of the time durations of all the test cases of that cycle
         req_time = sum([tc['Duration'] for tc in seltc])
-
-        ## Required time is the total available time for a particular build.
         total_time = req_time * self.avail_time_ratio
 
-        selsol = dict(list(zip(cycledf['Id'].tolist(), cycledf['Verdict'].tolist())))
+        selsol = dict(zip(cycledf['Id'].tolist(), cycledf['Verdict'].tolist()))
 
         self.scenario = VirtualScenario(testcases=seltc, solutions=selsol, name_suffix=name_suffix,
                                         available_time=total_time, schedule_date=self.maxtime + timedelta(days=1))
-        
         self.maxtime = seltc[-1]['LastRun']
 
         return self.scenario
