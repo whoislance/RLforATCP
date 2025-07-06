@@ -47,3 +47,10 @@ Cycle | The number of the CI cycle this test execution belongs to
 ## Usage
 
 These data sets are first used in the paper `Reinforcement Learning for Automatic Test Case Prioritization and Selection in Continuous Integration`.
+
+## Command
+```
+brew install git-lfs
+brew lfs install
+brew lfs pull
+```

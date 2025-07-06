@@ -2,6 +2,11 @@
 
 Implementation of RETECS and data sets for the paper *Reinforcement Learning for Automatic Test Case Prioritization and Selection in Continuous Integration*.
 
+## Reference
+paper: https://arxiv.org/pdf/1811.04122
+
+paper with code: https://paperswithcode.com/paper/reinforcement-learning-for-automatic-test
+
 ## Abstract
 
 > Testing in Continuous Integration (CI) involves test case prioritization, selection, and execution at each cycle.
