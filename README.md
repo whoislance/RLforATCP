@@ -80,3 +80,36 @@ Results are placed in the local RESULTS directory.
 `run_experiment_rq1.py` and `run_experiment_rq2.py` run the same experiments, but their evaluation differs.
 To save computational cost, the actual experiment execution in `run_experiment_rq2.py` is disabled, but this requires `run_experiment_rq1.py` to be run before.
 
+## steps
+- run_experiment_rq1.py
+    - run_experiments
+        调用了 run_experiment_common.py
+        参数1: exp_run_industrial_datasets指定运行哪个函数, 并执行多少次
+        参数2: parallel是否并行运行
+    - visualize
+        加载rq_*_stats.p文件, 并生成pdf
+
+- run_experiment_common.py
+    - 执行exp_run_industrial_datasets, 执行次数是ITERATIONS
+        - 初始化一个实例, 来自retecs文件里的PrioLearning类
+            - 指定了2种 agent, 分别是是 tableau, newwork. 他们两个用到的预处理函数preprocessor分别是preprocess_discrete, preprocess_continuous
+            -  指定了3 种奖励函数, 分别是failcount, timerank, tcfail
+            - 根据不同数据集名称, 加载 csv 文件. 比如测试用到的是IndustrialDatasetScenarioProvider
+        - 执行实例中的函数 train()
+
+- retecs.py
+    - init(): 初始化指定了 agent/scenario/reward_func 等信息
+    - train(): 通过执行process_scenario(sc), 得到了result, reward. 执行上限是no_scenarios=CI_CYCLES
+        - process_scenario()
+            - preprocess: 参数是当前的智能体, sc, 预处理函数. 输出 result
+                - 对当前行进行预处理preprocess' (分别是**preprocess_discrete**, preprocess_continuous)
+                - agent.get_action(x). tableau, newwork的函数处理是有区别的
+                - 补充 action优先级
+                - 返回 submit 的结果, 存到 result里面, 格式是        return [detected_failures, undetected_failures, ttf, napfd, recall, avg_precision, detection_ranks]
+            - reward_function: 输入预处理的结果, 和sc, 输出reward. 函数分别是**failcount**, timerank, tcfail
+            - 执行智能体的agent.reward(reward)
+        - 根据result, reward, 来更新 stats
+        - pickle.dump(stats), 保存到本地.p文件
+        - train返回的结果是np.mean(stats['napfd'])
+
+
